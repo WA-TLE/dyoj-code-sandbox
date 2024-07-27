@@ -10,5 +10,5 @@ import com.dy.model.ExecuteCodeResponse;
  * @Description:
  */
 public interface CodeSanBox {
-    ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest);
+    ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) throws InterruptedException;
 }

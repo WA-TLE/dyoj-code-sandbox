@@ -38,7 +38,7 @@ public class DockerDemo {
         String image = "nginx:latest";
 
         //  拉取镜像
-/*        PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);
+        PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);
         PullImageResultCallback pullImageResultCallback = new PullImageResultCallback() {
             @Override
             public void onNext(PullResponseItem item) {
@@ -49,14 +49,14 @@ public class DockerDemo {
         pullImageCmd
                 .exec(pullImageResultCallback) //  这里的参数是一个回调函数?
                 .awaitCompletion(); //  如果程序没有下载完成, 它会一直阻塞在这里
-        System.out.println("下载完成");*/
+        System.out.println("下载完成");
 
         //  创建容器
-       /* CreateContainerCmd containerCmd = dockerClient.createContainerCmd(image);
+        CreateContainerCmd containerCmd = dockerClient.createContainerCmd(image);
         CreateContainerResponse createContainerResponse = containerCmd
                 .withCmd("echo", "Hello Docker")
                 .exec();
-        System.out.println(createContainerResponse);*/
+        System.out.println(createContainerResponse);
 
         //  获取容器zhuangt
        /* ListContainersCmd listContainersCmd = dockerClient.listContainersCmd();

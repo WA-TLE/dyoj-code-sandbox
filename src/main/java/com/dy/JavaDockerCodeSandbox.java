@@ -7,9 +7,19 @@ import com.dy.model.ExecuteCodeResponse;
 import com.dy.model.ExecuteMessage;
 import com.dy.model.JudgeInfo;
 import com.dy.utils.ProcessUtil;
+import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.*;
+import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.HostConfig;
+import com.github.dockerjava.api.model.PullResponseItem;
+import com.github.dockerjava.api.model.Volume;
+import com.github.dockerjava.core.DockerClientBuilder;
+import com.github.dockerjava.okhttp.OkDockerHttpClient;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,9 +37,11 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
     public static final String GLOBAL_CODE_PATH = "tempcode";
     public static final String CLOBAL_JAVA_CLASS_NAME = "Main.java";
 
+    private static Boolean FIRST_INTI = true;
+
     public static final long TIME_OUT = 1000 * 5;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         JavaDockerCodeSandbox javaNativeCodeSandbox = new JavaDockerCodeSandbox();
         ExecuteCodeRequest executeCodeRequest = new ExecuteCodeRequest();
         executeCodeRequest.setLanguage("java");
@@ -43,7 +55,7 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
 
 
     @Override
-    public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) {
+    public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) throws InterruptedException {
         String language = executeCodeRequest.getLanguage();
         String code = executeCodeRequest.getCode();
         List<String> inputList = executeCodeRequest.getInputList();
@@ -66,7 +78,7 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
 
         //  2. 编译代码，得到 class 文件
         String compileCmd = String.format("javac -encoding utf-8 %s", userCodeFile.getAbsolutePath());
-//        String compileCmd = String.format("java -version");
+
         try {
             Process compileProcess = Runtime.getRuntime().exec(compileCmd);
 
@@ -77,76 +89,59 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
             return getErrorResponse(e);
         }
 
-        //  3. 执行代码，得到输出结果
-        List<ExecuteMessage> executeMessageList = new ArrayList<>();
-        for (String inputArgs : inputList) {
-            String runningCmd = String.format("java -Dfile.encoding=UTF-8 -cp %s Main %s", userCodeParentPath, inputArgs);
-            try {
-                Process runningProcess = Runtime.getRuntime().exec(runningCmd);
-
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(TIME_OUT);
-                        if (runningProcess.isAlive()) {
-                            runningProcess.destroy();
-                            throw new RuntimeException("程序超出时间限制");
-                        }
-                    } catch (InterruptedException e) {
-
-                        throw new RuntimeException(e);
-                    }
-                    System.out.println("!!!!!!!!!");
-
-                }).start();
-
-                ExecuteMessage runningMessage = ProcessUtil.runProcessAndGetMessage(runningProcess, "运行");
-                System.out.println("runningMessage = " + runningMessage);
-                executeMessageList.add(runningMessage);
-            } catch (IOException e) {
-                return getErrorResponse(e);
-            }
-
+        //  获取 OpenJdk 镜像
+        URI uri = null;
+        try {
+            uri = new URI("unix:///var/run/docker.sock");
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
 
-        //  4. 收集整理输出结果
+        //  todo 手动配置 Docker HTTP Client
+        DockerClient dockerClient = DockerClientBuilder.getInstance()
+                .withDockerHttpClient(new OkDockerHttpClient.Builder()
+                        .dockerHost(uri) // 指定 Docker 主机地址
+                        .build())
+                .build();
+
+
+        String image = "docker pull openjdk:17-alpine";
+
+        if (FIRST_INTI) {
+            //  拉取镜像
+            PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);
+            PullImageResultCallback pullImageResultCallback = new PullImageResultCallback() {
+                @Override
+                public void onNext(PullResponseItem item) {
+                    System.out.println("下载镜像：" + item.getStatus());
+                    super.onNext(item);
+                }
+            };
+            pullImageCmd
+                    .exec(pullImageResultCallback) //  这里的参数是一个回调函数?
+                    .awaitCompletion(); //  如果程序没有下载完成, 它会一直阻塞在这里
+            System.out.println("镜像拉取完成");
+            FIRST_INTI = false;
+        }
+
+
+        //  创建容器
+        CreateContainerCmd containerCmd = dockerClient.createContainerCmd(image);
+        HostConfig hostConfig = new HostConfig();
+        hostConfig.setBinds(new Bind(userCodeParentPath, new Volume("/app")));
+        hostConfig.withMemory(100 * 1000 * 1000L);
+        hostConfig.withCpuCount(1L);
+        CreateContainerResponse createContainerResponse = containerCmd
+                .withHostConfig(hostConfig)
+                .withCmd("echo", "Hello Docker")
+                .withAttachStdin(true)  //  把 Docker 容器和本地终端做一个连接
+                .withAttachStderr(true) //  可以让 Docker 获取本地的输入, 获取 Docker 的输出
+                .withAttachStdout(true)
+                .withTty(true)  //  创建一个交互终端
+                .exec();
+
+
         ExecuteCodeResponse executeCodeResponse = new ExecuteCodeResponse();
-        ArrayList<String> outputList = new ArrayList<>();
-        long maxTime = 0;
-        for (ExecuteMessage executeMessage : executeMessageList) {
-            String errorMessage = executeMessage.getErrorMessage();
-            if (errorMessage != null) {
-                //  代码执行错误!
-                executeCodeResponse.setStatus(3);
-                executeCodeResponse.setMessage(errorMessage);
-                break;
-            }
-            Long time = executeMessage.getTime();
-            if (time != null) {
-                maxTime = Math.max((maxTime), time);
-            }
-            outputList.add(executeMessage.getMessage());
-        }
-
-        if (outputList.size() == executeMessageList.size()) {
-            //  程序正常退出
-            executeCodeResponse.setStatus(1);
-            executeCodeResponse.setOutputList(outputList);
-            executeCodeResponse.setMessage("程序执行成功!");
-        }
-
-        JudgeInfo judgeInfo = new JudgeInfo();
-
-        judgeInfo.setTime(maxTime);
-        judgeInfo.setMemory(0L);
-
-        executeCodeResponse.setJudgeInfo(judgeInfo);
-
-
-        //  5. 文件清理，释放空间
-        if (userCodeFile.getParentFile() != null) {
-            FileUtil.del(userCodeParentPath);
-        }
-
 
         return executeCodeResponse;
         //  6. 错误处理，提升程序健壮性
