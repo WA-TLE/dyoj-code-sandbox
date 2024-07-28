@@ -9,6 +9,7 @@ import com.dy.model.JudgeInfo;
 import com.dy.utils.ProcessUtil;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.*;
+import com.github.dockerjava.api.exception.DockerException;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.PullResponseItem;
@@ -105,11 +106,13 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
                 .build();
 
 
-        String image = "docker pull openjdk:17-alpine";
+        String image = "openjdk:17-alpine";
 
         if (FIRST_INTI) {
+            System.out.println("开始尝试拉取镜像");
             //  拉取镜像
             PullImageCmd pullImageCmd = dockerClient.pullImageCmd(image);
+            System.out.println("镜像准备");
             PullImageResultCallback pullImageResultCallback = new PullImageResultCallback() {
                 @Override
                 public void onNext(PullResponseItem item) {
@@ -117,6 +120,7 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
                     super.onNext(item);
                 }
             };
+            System.out.println("镜像准备完成");
             pullImageCmd
                     .exec(pullImageResultCallback) //  这里的参数是一个回调函数?
                     .awaitCompletion(); //  如果程序没有下载完成, 它会一直阻塞在这里
@@ -124,21 +128,32 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
             FIRST_INTI = false;
         }
 
+        System.out.println("创建容器");
 
         //  创建容器
-        CreateContainerCmd containerCmd = dockerClient.createContainerCmd(image);
-        HostConfig hostConfig = new HostConfig();
-        hostConfig.setBinds(new Bind(userCodeParentPath, new Volume("/app")));
-        hostConfig.withMemory(100 * 1000 * 1000L);
-        hostConfig.withCpuCount(1L);
-        CreateContainerResponse createContainerResponse = containerCmd
-                .withHostConfig(hostConfig)
-                .withCmd("echo", "Hello Docker")
-                .withAttachStdin(true)  //  把 Docker 容器和本地终端做一个连接
-                .withAttachStderr(true) //  可以让 Docker 获取本地的输入, 获取 Docker 的输出
-                .withAttachStdout(true)
-                .withTty(true)  //  创建一个交互终端
-                .exec();
+        try {
+            CreateContainerCmd containerCmd = dockerClient.createContainerCmd(image);
+            HostConfig hostConfig = new HostConfig();
+            hostConfig.setBinds(new Bind(userCodeParentPath, new Volume("/app")));
+            hostConfig.withMemory(100 * 1024 * 1024L); // 设置为 100MB 内存
+            hostConfig.withCpuCount(1L);
+
+            CreateContainerResponse createContainerResponse = containerCmd
+                    .withHostConfig(hostConfig)
+                    .withAttachStdin(true)  // 把 Docker 容器和本地终端做一个连接
+                    .withAttachStderr(true) // 可以让 Docker 获取本地的输入, 获取 Docker 的输出
+                    .withAttachStdout(true)
+                    .withTty(true)  // 创建一个交互终端
+                    .withCmd("/bin/sh")  // 设置容器启动时运行的命令
+                    .exec();
+            String containerId = createContainerResponse.getId();
+
+            System.out.println("容器 ID: " + containerId);
+
+            dockerClient.startContainerCmd(containerId).exec();
+        } catch (DockerException e) {
+            e.printStackTrace();
+        }
 
 
         ExecuteCodeResponse executeCodeResponse = new ExecuteCodeResponse();
