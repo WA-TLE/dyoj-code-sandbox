@@ -2,6 +2,7 @@ package com.dy;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.resource.ResourceUtil;
+import cn.hutool.core.util.ArrayUtil;
 import com.dy.model.ExecuteCodeRequest;
 import com.dy.model.ExecuteCodeResponse;
 import com.dy.model.ExecuteMessage;
@@ -10,11 +11,9 @@ import com.dy.utils.ProcessUtil;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.*;
 import com.github.dockerjava.api.exception.DockerException;
-import com.github.dockerjava.api.model.Bind;
-import com.github.dockerjava.api.model.HostConfig;
-import com.github.dockerjava.api.model.PullResponseItem;
-import com.github.dockerjava.api.model.Volume;
+import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DockerClientBuilder;
+import com.github.dockerjava.core.command.ExecStartResultCallback;
 import com.github.dockerjava.okhttp.OkDockerHttpClient;
 
 import java.io.File;
@@ -131,29 +130,75 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
         System.out.println("创建容器");
 
         //  创建容器
-        try {
-            CreateContainerCmd containerCmd = dockerClient.createContainerCmd(image);
-            HostConfig hostConfig = new HostConfig();
-            hostConfig.setBinds(new Bind(userCodeParentPath, new Volume("/app")));
-            hostConfig.withMemory(100 * 1024 * 1024L); // 设置为 100MB 内存
-            hostConfig.withCpuCount(1L);
 
-            CreateContainerResponse createContainerResponse = containerCmd
-                    .withHostConfig(hostConfig)
+
+        CreateContainerCmd containerCmd = dockerClient.createContainerCmd(image);
+        HostConfig hostConfig = new HostConfig();
+        hostConfig.setBinds(new Bind(userCodeParentPath, new Volume("/app")));
+        hostConfig.withMemory(100 * 1024 * 1024L); // 设置为 100MB 内存
+        hostConfig.withCpuCount(1L);
+
+        CreateContainerResponse createContainerResponse = containerCmd
+                .withHostConfig(hostConfig)
+                .withAttachStdin(true)  // 把 Docker 容器和本地终端做一个连接
+                .withAttachStderr(true) // 可以让 Docker 获取本地的输入, 获取 Docker 的输出
+                .withAttachStdout(true)
+                .withTty(true)  // 创建一个交互终端
+                .withCmd("/bin/sh")  // 设置容器启动时运行的命令
+                .exec();
+        String containerId = createContainerResponse.getId();
+
+        System.out.println("容器 ID: " + containerId);
+
+        // 启动容器, 并获取执行信息
+        //  执行 docker exec zealous_buck java -cp /app Main 7 8, 将输入喂给 Docker 容器
+        List<ExecuteMessage> executeMessageList = new ArrayList<>();
+        dockerClient.startContainerCmd(containerId).exec();
+        for (String inputArgs : inputList) {
+            String[] inputArgsArray = inputArgs.split(" ");
+            String[] cmdArray = ArrayUtil.append(new String[]{"java", "-cp", "/app", "Main"}, inputArgsArray);
+            System.out.println("执行的命令" + Arrays.toString(cmdArray));
+
+            ExecCreateCmdResponse execCreateCmdResponse = dockerClient.execCreateCmd(containerId)
+                    .withCmd("/bin/sh")
+                    .withCmd(cmdArray)
                     .withAttachStdin(true)  // 把 Docker 容器和本地终端做一个连接
                     .withAttachStderr(true) // 可以让 Docker 获取本地的输入, 获取 Docker 的输出
                     .withAttachStdout(true)
-                    .withTty(true)  // 创建一个交互终端
-                    .withCmd("/bin/sh")  // 设置容器启动时运行的命令
                     .exec();
-            String containerId = createContainerResponse.getId();
+            System.out.println("创建执行命令: " + execCreateCmdResponse);
 
-            System.out.println("容器 ID: " + containerId);
+            ExecuteMessage executeMessage = new ExecuteMessage();
+            final String[] message = {null};
+            final String[] errorMessage = {null};
+            String execId = execCreateCmdResponse.getId();
 
-            dockerClient.startContainerCmd(containerId).exec();
-        } catch (DockerException e) {
-            e.printStackTrace();
+            //  创建回调函数
+            ExecStartResultCallback execStartResultCallback = new ExecStartResultCallback(){
+                @Override
+                public void onNext(Frame frame) {
+                    StreamType streamType = frame.getStreamType();
+                    //  获取输出结果
+                    if (streamType.STDERR.equals(streamType)) {
+                        errorMessage[0] = new String(frame.getPayload());
+                        System.out.println("输出错误结果: " + errorMessage[0]);
+                    } else {
+                        message[0] = new String(frame.getPayload());
+                        System.out.println("输出正确结果: " + message[0]);
+                    }
+                    super.onNext(frame);
+                }
+            };
+
+            dockerClient.execStartCmd(execId)
+                    .exec(execStartResultCallback)
+                    .awaitCompletion();
+            executeMessage.setMessage(message[0]);
+            executeMessage.setErrorMessage(errorMessage[0]);
+            executeMessageList.add(executeMessage);
         }
+
+
 
 
         ExecuteCodeResponse executeCodeResponse = new ExecuteCodeResponse();
