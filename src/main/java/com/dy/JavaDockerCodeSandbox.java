@@ -253,8 +253,52 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
 
 
 
-
+        //  4. 收集整理输出结果
         ExecuteCodeResponse executeCodeResponse = new ExecuteCodeResponse();
+        ArrayList<String> outputList = new ArrayList<>();
+        long maxTime = 0;
+        long memory = 0L;
+        for (ExecuteMessage executeMessage : executeMessageList) {
+            String errorMessage = executeMessage.getErrorMessage();
+            if (errorMessage != null) {
+                //  代码执行错误!
+                executeCodeResponse.setStatus(3);
+                executeCodeResponse.setMessage(errorMessage);
+                break;
+            }
+            Long time = executeMessage.getTime();
+            if (time != null) {
+                maxTime = Math.max((maxTime), time);
+            }
+            Long memory1 = executeMessage.getMemory();
+            if (memory1 != null) {
+                memory = Math.max((memory), memory1);
+            }
+            outputList.add(executeMessage.getMessage());
+        }
+
+        if (outputList.size() == executeMessageList.size()) {
+            //  程序正常退出
+            executeCodeResponse.setStatus(1);
+            executeCodeResponse.setOutputList(outputList);
+            executeCodeResponse.setMessage("程序执行成功!");
+        }
+
+        JudgeInfo judgeInfo = new JudgeInfo();
+
+        judgeInfo.setTime(maxTime);
+        judgeInfo.setMemory(memory);
+
+        executeCodeResponse.setJudgeInfo(judgeInfo);
+
+
+        //  5. 文件清理，释放空间
+        if (userCodeFile.getParentFile() != null) {
+            FileUtil.del(userCodeParentPath);
+        }
+
+
+        System.out.println("最终得到的结果: " + executeCodeResponse);
 
         return executeCodeResponse;
         //  6. 错误处理，提升程序健壮性
