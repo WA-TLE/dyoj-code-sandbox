@@ -1,5 +1,6 @@
 package com.dy;
 
+import cn.hutool.core.date.StopWatch;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.resource.ResourceUtil;
 import cn.hutool.core.util.ArrayUtil;
@@ -9,6 +10,7 @@ import com.dy.model.ExecuteMessage;
 import com.dy.model.JudgeInfo;
 import com.dy.utils.ProcessUtil;
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.*;
 import com.github.dockerjava.api.exception.DockerException;
 import com.github.dockerjava.api.model.*;
@@ -16,6 +18,7 @@ import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
 import com.github.dockerjava.okhttp.OkDockerHttpClient;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -25,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @Author: dy
@@ -37,7 +41,7 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
     public static final String GLOBAL_CODE_PATH = "tempcode";
     public static final String CLOBAL_JAVA_CLASS_NAME = "Main.java";
 
-    private static Boolean FIRST_INTI = true;
+    private static Boolean FIRST_INTI = false;
 
     public static final long TIME_OUT = 1000 * 5;
 
@@ -130,8 +134,6 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
         System.out.println("创建容器");
 
         //  创建容器
-
-
         CreateContainerCmd containerCmd = dockerClient.createContainerCmd(image);
         HostConfig hostConfig = new HostConfig();
         hostConfig.setBinds(new Bind(userCodeParentPath, new Volume("/app")));
@@ -155,6 +157,7 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
         List<ExecuteMessage> executeMessageList = new ArrayList<>();
         dockerClient.startContainerCmd(containerId).exec();
         for (String inputArgs : inputList) {
+            StopWatch stopWatch = new StopWatch();
             String[] inputArgsArray = inputArgs.split(" ");
             String[] cmdArray = ArrayUtil.append(new String[]{"java", "-cp", "/app", "Main"}, inputArgsArray);
             System.out.println("执行的命令" + Arrays.toString(cmdArray));
@@ -189,13 +192,63 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
                     super.onNext(frame);
                 }
             };
+            //  获取占用的内存
+            StatsCmd statsCmd = dockerClient.statsCmd(containerId);
+            final long[] maxMemory = {0L};
 
+            ResultCallback<Statistics> statisticsResultCallback = statsCmd.exec(new ResultCallback<Statistics>() {
+                @Override
+                public void onNext(Statistics statistics) {
+                    long memory = statistics.getMemoryStats().getUsage();
+                    maxMemory[0] = Math.max(maxMemory[0], memory);
+                    System.out.println("内存占用: " + maxMemory[0]);
+                }
+
+                @Override
+                public void onStart(Closeable closeable) {
+
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+
+                }
+
+                @Override
+                public void onComplete() {
+
+                }
+
+                @Override
+                public void close() throws IOException {
+
+                }
+            });
+
+            statsCmd.exec(statisticsResultCallback);
+
+
+            stopWatch.start();
+            //  执行程序
             dockerClient.execStartCmd(execId)
                     .exec(execStartResultCallback)
-                    .awaitCompletion();
+                    .awaitCompletion(TIME_OUT, TimeUnit.MILLISECONDS); //  超时控制
+            stopWatch.stop();
+            long time = stopWatch.getLastTaskTimeMillis();
+            statsCmd.close(); //  记得关闭
+
             executeMessage.setMessage(message[0]);
             executeMessage.setErrorMessage(errorMessage[0]);
+            executeMessage.setTime(time);
+            // TODO: 7/29/24 内存可能还没更新
+            System.out.println("内存占用!!!!!!!: " + maxMemory[0]);
+            executeMessage.setMemory(maxMemory[0]);
             executeMessageList.add(executeMessage);
+
+            System.out.println("程序执行信息: " + executeMessage);
+
+
+
         }
 
 
