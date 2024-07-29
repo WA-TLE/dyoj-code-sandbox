@@ -137,14 +137,18 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
         CreateContainerCmd containerCmd = dockerClient.createContainerCmd(image);
         HostConfig hostConfig = new HostConfig();
         hostConfig.setBinds(new Bind(userCodeParentPath, new Volume("/app")));
-        hostConfig.withMemory(100 * 1024 * 1024L); // 设置为 100MB 内存
+        hostConfig.withMemory(256 * 1024 * 1024L); // 设置为 256MB 内存
         hostConfig.withCpuCount(1L);
+        hostConfig.withMemorySwap(0L);
 
+        // TODO: 7/29/24 使用 Linux 自带安全管理措施
         CreateContainerResponse createContainerResponse = containerCmd
                 .withHostConfig(hostConfig)
                 .withAttachStdin(true)  // 把 Docker 容器和本地终端做一个连接
                 .withAttachStderr(true) // 可以让 Docker 获取本地的输入, 获取 Docker 的输出
                 .withAttachStdout(true)
+                .withNetworkDisabled(true) // 限制程序访问网络
+                .withReadonlyRootfs(true)
                 .withTty(true)  // 创建一个交互终端
                 .withCmd("/bin/sh")  // 设置容器启动时运行的命令
                 .exec();
@@ -176,8 +180,18 @@ public class JavaDockerCodeSandbox implements CodeSanBox {
             final String[] errorMessage = {null};
             String execId = execCreateCmdResponse.getId();
 
+            final boolean[] timeout = {true};
+
             //  创建回调函数
             ExecStartResultCallback execStartResultCallback = new ExecStartResultCallback(){
+
+                @Override
+                public void onComplete() {
+                    //  如果正常执行完成, 表明未超时
+                    timeout[0] = false;
+                    super.onComplete();
+                }
+
                 @Override
                 public void onNext(Frame frame) {
                     StreamType streamType = frame.getStreamType();
