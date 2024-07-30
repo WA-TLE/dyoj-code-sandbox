@@ -7,6 +7,7 @@ import com.dy.model.ExecuteCodeResponse;
 import com.dy.model.ExecuteMessage;
 import com.dy.model.JudgeInfo;
 import com.dy.utils.ProcessUtil;
+import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,6 +22,7 @@ import java.util.UUID;
  * @Date: 2024/7/20 16:42
  * @Description:
  */
+@Component
 public class JavaNativeCodeSandbox extends CodeSandboxTemplate {
 
     public static void main(String[] args) {

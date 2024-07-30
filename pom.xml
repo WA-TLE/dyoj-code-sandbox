@@ -30,9 +30,6 @@
         <java.version>17</java.version>
     </properties>
     <dependencies>
-
-
-
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
@@ -83,11 +80,6 @@
             <artifactId>docker-java-transport-okhttp</artifactId>
             <version>3.2.8</version>
         </dependency>
-
-
-
-
-
     </dependencies>
 
     <build>

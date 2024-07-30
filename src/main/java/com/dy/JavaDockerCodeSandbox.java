@@ -17,6 +17,7 @@ import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
 import com.github.dockerjava.okhttp.OkDockerHttpClient;
+import org.springframework.stereotype.Component;
 
 import java.io.Closeable;
 import java.io.File;
@@ -27,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -35,9 +35,8 @@ import java.util.concurrent.TimeUnit;
  * @Date: 2024/7/20 16:42
  * @Description:
  */
+@Component
 public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
-
-
 
     public static void main(String[] args) throws InterruptedException {
         JavaDockerCodeSandbox javaNativeCodeSandbox = new JavaDockerCodeSandbox();

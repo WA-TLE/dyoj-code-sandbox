@@ -8,6 +8,9 @@ import com.dy.model.ExecuteMessage;
 import com.dy.model.JudgeInfo;
 import com.dy.utils.ProcessUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,12 +25,41 @@ import java.util.UUID;
  * @Date: 2024/7/30 10:50
  * @Description:
  */
+
 @Slf4j
 public abstract class CodeSandboxTemplate  implements CodeSanBox {
+
     public static final String GLOBAL_CODE_PATH = "tempcode";
     public static final String GLOBAL_JAVA_CLASS_NAME = "Main.java";
-
     public static final long TIME_OUT = 1000 * 5;
+
+    @Override
+    public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) {
+
+        List<String> inputList = executeCodeRequest.getInputList();
+
+        //  1. 将用户代码保存为文件
+        String code = executeCodeRequest.getCode();
+        File userCodeFile = saveUserCode(code);
+
+        //  2. 编译代码，得到 class 文件
+        compileCode(userCodeFile);
+
+        //  3. 执行代码，得到输出结果
+        List<ExecuteMessage> executeMessageList = runUserCode(inputList, userCodeFile);
+
+        //  4. 收集整理输出结果
+        ExecuteCodeResponse executeCodeResponse = getOutputResponse(executeMessageList);
+
+        //  5. 文件清理，释放空间
+        boolean flag = deleteFile(userCodeFile);
+        if (!flag) {
+            log.info("用户代码文件未成功删除: {}", userCodeFile.getParentFile().getParent());
+        }
+
+        return executeCodeResponse;
+
+    }
 
     /**
      * 1. 保存用户代码文件
@@ -98,6 +130,8 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
 
         }
 
+        log.info("用户程序执行信息: {}", executeMessageList);
+
         return executeMessageList;
     }
 
@@ -135,6 +169,7 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
         judgeInfo.setTime(maxTime);
         judgeInfo.setMemory(0L);
         executeCodeResponse.setJudgeInfo(judgeInfo);
+        log.info("程序输出结果: {}", executeCodeResponse);
         return executeCodeResponse;
     }
 
@@ -154,33 +189,7 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
         return true;
     }
 
-    @Override
-    public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) {
 
-        List<String> inputList = executeCodeRequest.getInputList();
-
-        //  1. 将用户代码保存为文件
-        String code = executeCodeRequest.getCode();
-        File userCodeFile = saveUserCode(code);
-
-        //  2. 编译代码，得到 class 文件
-        compileCode(userCodeFile);
-
-        //  3. 执行代码，得到输出结果
-        List<ExecuteMessage> executeMessageList = runUserCode(inputList, userCodeFile);
-
-        //  4. 收集整理输出结果
-        ExecuteCodeResponse executeCodeResponse = getOutputResponse(executeMessageList);
-
-        //  5. 文件清理，释放空间
-        boolean flag = deleteFile(userCodeFile);
-        if (!flag) {
-            log.info("用户代码文件未成功删除: {}", userCodeFile.getParentFile().getParent());
-        }
-
-        return executeCodeResponse;
-
-    }
 
     private ExecuteCodeResponse getErrorResponse(Throwable e) {
         ExecuteCodeResponse executeCodeResponse = new ExecuteCodeResponse();
