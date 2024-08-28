@@ -1,24 +1,24 @@
-package com.dy;
+package com.dy.sandbox;
 
 import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.io.resource.ResourceUtil;
+import cn.hutool.dfa.FoundWord;
+import cn.hutool.dfa.WordTree;
 import com.dy.model.ExecuteCodeRequest;
 import com.dy.model.ExecuteCodeResponse;
 import com.dy.model.ExecuteMessage;
 import com.dy.model.JudgeInfo;
 import com.dy.utils.ProcessUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.*;
+
+import static com.dy.constant.CodeBlackList.SENSITIVE_WORD_LIST;
 
 /**
  * @Author: dy
@@ -33,30 +33,61 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
     public static final String GLOBAL_JAVA_CLASS_NAME = "Main.java";
     public static final long TIME_OUT = 1000 * 5;
 
+    /**
+     * Java安全管理器类存放路径
+     */
+    private static final String SECURITY_MANAGER_PATH;
+
+    /**
+     * Java安全管理器类名
+     */
+    private static final String SECURITY_MANAGER_CLASS_NAME = "NowSecurityManager";
+
+    /**
+     * 使用 Hutool 的工具类，字典树，存放黑名单
+     */
+    private static final WordTree WORD_TREE;
+
+    static {
+        WORD_TREE = new WordTree();
+        WORD_TREE.addWords(SENSITIVE_WORD_LIST);
+        // 初始安全配置文件路径
+        SECURITY_MANAGER_PATH = System.getProperty("user.dir");
+    }
+
     @Override
     public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) {
 
         List<String> inputList = executeCodeRequest.getInputList();
 
-        //  1. 将用户代码保存为文件
+        // 1. 将用户代码保存为文件
         String code = executeCodeRequest.getCode();
+
+        // 校验用户代码安全性
+        FoundWord foundWord = WORD_TREE.matchWord(code);
+        if (foundWord != null) {
+            log.info("用户代码包含禁止词: " + foundWord.getFoundWord());
+            // 返回错误信息
+            return getErrorResponse(new RuntimeException("用户代码包含禁止词: " + foundWord.getFoundWord()));
+        }
+
+
         File userCodeFile = saveUserCode(code);
 
-        //  2. 编译代码，得到 class 文件
+        // 2. 编译代码，得到 class 文件
         compileCode(userCodeFile);
 
-        //  3. 执行代码，得到输出结果
+        // 3. 执行代码，得到输出结果
         List<ExecuteMessage> executeMessageList = runUserCode(inputList, userCodeFile);
 
-        //  4. 收集整理输出结果
+        // 4. 收集整理输出结果
         ExecuteCodeResponse executeCodeResponse = getOutputResponse(executeMessageList);
 
-        //  5. 文件清理，释放空间
+        // 5. 文件清理，释放空间
         boolean flag = deleteFile(userCodeFile);
         if (!flag) {
             log.info("用户代码文件未成功删除: {}", userCodeFile.getParentFile().getParent());
         }
-
         return executeCodeResponse;
 
     }
@@ -68,15 +99,19 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
      * @return
      */
     public File saveUserCode(String userCode) {
+        // 获取当前 Java 进程的工作目录
         String userDir = System.getProperty("user.dir");
+        log.info("userDir: {}", userDir); //  D:\WorkSpace\OJ\dyoj-code-sandbox
+
         String globalCodePathName = userDir + File.separator + GLOBAL_CODE_PATH;
 
         if (!FileUtil.exist(globalCodePathName)) {
             FileUtil.mkdir(globalCodePathName);
         }
+        // 每个提交创建一个不同的文件夹(防止文件名冲突)
         String userCodeParentPath = globalCodePathName + File.separator + UUID.randomUUID();
         String userCodePath = userCodeParentPath + File.separator + GLOBAL_JAVA_CLASS_NAME;
-        //  用户代码保存的文件
+        //  使用 Hutool 工具类保存用户代码
         return FileUtil.writeString(userCode, userCodePath, StandardCharsets.UTF_8);
     }
 
@@ -87,7 +122,10 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
      */
     public void compileCode(File userCodeFile) {
         String compileCmd = String.format("javac -encoding utf-8 %s", userCodeFile.getAbsolutePath());
+        log.info("compileCmd: {}", compileCmd);
+        //  javac -encoding utf-8 D:\WorkSpace\OJ\dyoj-code-sandbox\tempcode\7d225a77-3132-4724-aefd-bb357c8269f6\Main.java
         try {
+            // 启动一个新进程来运行指定的命令
             Process compileProcess = Runtime.getRuntime().exec(compileCmd);
             ExecuteMessage compileMessage = ProcessUtil.runProcessAndGetMessage(compileProcess, "编译");
             System.out.println(compileMessage);
@@ -103,6 +141,8 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
      * @param userCodeFile 用户代码文件(用它来得到父目录)
      * @return
      */
+
+
     public List<ExecuteMessage> runUserCode(List<String> inputList, File userCodeFile) {
         String userCodeParentPath = userCodeFile.getParentFile().getAbsolutePath();
         List<ExecuteMessage> executeMessageList = new ArrayList<>();
@@ -144,6 +184,7 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
     public ExecuteCodeResponse getOutputResponse(List<ExecuteMessage> executeMessageList) {
         ExecuteCodeResponse executeCodeResponse = new ExecuteCodeResponse();
         ArrayList<String> outputList = new ArrayList<>();
+
         long maxTime = 0;
         for (ExecuteMessage executeMessage : executeMessageList) {
             String errorMessage = executeMessage.getErrorMessage();
@@ -190,7 +231,11 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
     }
 
 
-
+    /**
+     * 返回沙箱的错误信息
+     * @param e
+     * @return
+     */
     private ExecuteCodeResponse getErrorResponse(Throwable e) {
         ExecuteCodeResponse executeCodeResponse = new ExecuteCodeResponse();
         executeCodeResponse.setMessage(e.getMessage());

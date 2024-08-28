@@ -1,6 +1,6 @@
 package com.dy.controller;
 
-import com.dy.JavaNativeCodeSandbox;
+import com.dy.sandbox.JavaNativeCodeSandbox;
 import com.dy.model.ExecuteCodeRequest;
 import com.dy.model.ExecuteCodeResponse;
 import jakarta.annotation.Resource;
@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-
 
 
 /**

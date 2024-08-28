@@ -1,21 +1,12 @@
-package com.dy;
+package com.dy.sandbox;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.resource.ResourceUtil;
 import com.dy.model.ExecuteCodeRequest;
 import com.dy.model.ExecuteCodeResponse;
-import com.dy.model.ExecuteMessage;
-import com.dy.model.JudgeInfo;
-import com.dy.utils.ProcessUtil;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * @Author: dy
@@ -25,6 +16,10 @@ import java.util.UUID;
 @Component
 public class JavaNativeCodeSandbox extends CodeSandboxTemplate {
 
+    /**
+     * 用于测试
+     * @param args
+     */
     public static void main(String[] args) {
         JavaNativeCodeSandbox javaNativeCodeSandbox = new JavaNativeCodeSandbox();
         ExecuteCodeRequest executeCodeRequest = new ExecuteCodeRequest();
