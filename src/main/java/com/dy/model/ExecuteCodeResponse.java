@@ -25,6 +25,11 @@ public class ExecuteCodeResponse {
     private String message;
 
     /**
+     * 程序执行状态
+     */
+    private Integer status;
+
+    /**
      * 输出用例列表
      */
     private List<String> outputList;
@@ -34,10 +39,7 @@ public class ExecuteCodeResponse {
      */
     private JudgeInfo judgeInfo;
 
-    /**
-     * 程序执行状态
-     */
-    private Integer status;
+
 
 
 }

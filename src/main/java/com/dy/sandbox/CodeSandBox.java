@@ -9,6 +9,6 @@ import com.dy.model.ExecuteCodeResponse;
  * @Date: 2024/7/16 17:08
  * @Description:
  */
-public interface CodeSanBox {
+public interface CodeSandBox {
     ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) throws InterruptedException;
 }

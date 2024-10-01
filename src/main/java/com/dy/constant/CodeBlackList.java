@@ -56,4 +56,34 @@ public interface CodeBlackList {
             "Runtime.load", "Runtime.loadLibrary" // 加载本地库
     );
 
+    /**
+     * C语言相关敏感词
+     */
+    List<String> C_SENSITIVE_WORD_LIST = Arrays.asList(
+            // 文件操作相关
+            "fopen", "fclose", "fread", "fwrite", "fscanf", "fprintf", "fseek", "ftell", "rewind", "remove", "rename", "tmpfile", "mkstemp",
+
+            // 网络相关
+            "socket", "bind", "connect", "listen", "accept", "send", "recv", "setsockopt", "getsockopt", "inet_addr", "htons", "htonl", "ntohs", "ntohl",
+
+            // 系统命令执行相关
+            "system", "execvp", "execv", "execl", "execlp", "popen", "pclose",
+
+            // 数据库相关
+            // C语言中通常通过库如 MySQL C API, SQLite等实现数据库操作，以下为一些示例函数
+            "mysql_query", "sqlite3_exec",
+
+            // 加密解密相关
+            // C语言使用 libcrypto (OpenSSL)等库进行加密解密操作
+            "EVP_EncryptInit", "EVP_DecryptInit",
+            // 线程相关
+            "pthread_create", "pthread_join", "pthread_detach", "pthread_exit",
+            // 其他可能导致安全问题的操作
+            "dlopen", "dlsym", // 动态加载库
+            "getenv", // 环境变量操作
+            "atexit", // 添加退出时执行的函数
+            "mmap", "munmap", // 直接内存映射操作
+            "system" // 执行外部命令
+    );
+
 }

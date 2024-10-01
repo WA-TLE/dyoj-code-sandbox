@@ -1,6 +1,8 @@
 package com.dy.model;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * @Author: dy
@@ -8,6 +10,8 @@ import lombok.Data;
  * @Description:
  */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class JudgeInfo {
 
     /**
@@ -19,11 +23,11 @@ public class JudgeInfo {
     /**
      * 程序执行用时(ms)
      */
-    private long time;
+    private Long time;
 
     /**
      * 程序执行消耗内存(kb)
      */
-    private long memory;
+    private Long memory;
 
 }

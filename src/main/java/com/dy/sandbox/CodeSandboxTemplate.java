@@ -16,7 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.*;
 
 import static com.dy.constant.CodeBlackList.SENSITIVE_WORD_LIST;
 
@@ -27,7 +26,7 @@ import static com.dy.constant.CodeBlackList.SENSITIVE_WORD_LIST;
  */
 
 @Slf4j
-public abstract class CodeSandboxTemplate  implements CodeSanBox {
+public abstract class CodeSandboxTemplate  implements CodeSandBox {
 
     public static final String GLOBAL_CODE_PATH = "tempcode";
     public static final String GLOBAL_JAVA_CLASS_NAME = "Main.java";
@@ -151,17 +150,17 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
             String runningCmd = String.format("java -Dfile.encoding=UTF-8 -cp %s Main %s", userCodeParentPath, inputArgs);
             try {
                 Process runningProcess = Runtime.getRuntime().exec(runningCmd);
-//                new Thread(() -> {
-//                    try {
-//                        Thread.sleep(TIME_OUT);
-//                        if (runningProcess.isAlive()) {
-//                            runningProcess.destroy();
-//                            throw new RuntimeException("程序超出时间限制");
-//                        }
-//                    } catch (InterruptedException e) {
-//                        throw new RuntimeException(e);
-//                    }
-//                }).start();
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(TIME_OUT);
+                        if (runningProcess.isAlive()) {
+                            runningProcess.destroy();
+                            throw new RuntimeException("程序超出时间限制");
+                        }
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }).start();
 
                 ExecuteMessage runningMessage = ProcessUtil.runInteractProcessAndGetMessage(runningProcess, inputArgs);
                 System.out.println("runningMessage = " + runningMessage);
