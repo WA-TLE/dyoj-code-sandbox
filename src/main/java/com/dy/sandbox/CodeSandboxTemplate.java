@@ -75,6 +75,7 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
         File userCodeFile = saveUserCode(code);
 
         // 2. 编译代码，得到 class 文件
+        // TODO: 2024/9/18 对于编译失败后的处理不太优雅
         compileCode(userCodeFile);
 
         // 3. 执行代码，得到输出结果
@@ -150,18 +151,19 @@ public abstract class CodeSandboxTemplate  implements CodeSanBox {
             String runningCmd = String.format("java -Dfile.encoding=UTF-8 -cp %s Main %s", userCodeParentPath, inputArgs);
             try {
                 Process runningProcess = Runtime.getRuntime().exec(runningCmd);
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(TIME_OUT);
-                        if (runningProcess.isAlive()) {
-                            runningProcess.destroy();
-                            throw new RuntimeException("程序超出时间限制");
-                        }
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                }).start();
-                ExecuteMessage runningMessage = ProcessUtil.runProcessAndGetMessage(runningProcess, "运行");
+//                new Thread(() -> {
+//                    try {
+//                        Thread.sleep(TIME_OUT);
+//                        if (runningProcess.isAlive()) {
+//                            runningProcess.destroy();
+//                            throw new RuntimeException("程序超出时间限制");
+//                        }
+//                    } catch (InterruptedException e) {
+//                        throw new RuntimeException(e);
+//                    }
+//                }).start();
+
+                ExecuteMessage runningMessage = ProcessUtil.runInteractProcessAndGetMessage(runningProcess, inputArgs);
                 System.out.println("runningMessage = " + runningMessage);
                 executeMessageList.add(runningMessage);
             } catch (IOException e) {

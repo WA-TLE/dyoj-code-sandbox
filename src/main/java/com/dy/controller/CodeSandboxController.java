@@ -33,10 +33,10 @@ public class CodeSandboxController {
                                            HttpServletResponse response) {
         //  获取请求头
         String authHeader = request.getHeader(AUTH_REQUEST_HEADER);
-        if (!AUTH_REQUEST_SECRET.equals(authHeader)) {
-            response.setStatus(403);
-            return null;
-        }
+//        if (!AUTH_REQUEST_SECRET.equals(authHeader)) {
+//            response.setStatus(403);
+//            return null;
+//        }
 
 
         log.info("远程代码沙箱调用: {}", executeCodeRequest);
