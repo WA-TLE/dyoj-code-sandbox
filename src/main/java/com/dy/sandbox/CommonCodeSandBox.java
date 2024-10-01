@@ -31,31 +31,31 @@ public abstract class CommonCodeSandBox implements CodeSandBox {
      * @return
      */
     public File saveCodeToFile(String userCode, String language , String globalCodePath, String fileName) {
-//        String projectPath = System.getProperty("user.dir");
-//        String globalCodePathName = projectPath + File.separator + globalCodePath;
-//        if (!FileUtil.exist(globalCodePathName)) {
-//            FileUtil.mkdir(globalCodePathName);
-//        }
-//        //把用户代码隔离
-//        String userCodeParentPath = globalCodePathName + File.separator + UUID.randomUUID();
-//        String userCodePath = userCodeParentPath + File.separator + fileName;
-//        return FileUtil.writeUtf8String(code, userCodePath);
-
-
-        // 获取当前 Java 进程的工作目录
-        String userDir = System.getProperty("user.dir");
-        log.info("userDir: {}", userDir); //  D:\WorkSpace\OJ\dyoj-code-sandbox
-
-        String globalCodePathName = userDir + File.separator + GLOBAL_CODE_PATH;
-
+        String projectPath = System.getProperty("user.dir");
+        String globalCodePathName = projectPath + File.separator + globalCodePath;
         if (!FileUtil.exist(globalCodePathName)) {
             FileUtil.mkdir(globalCodePathName);
         }
-        // 每个提交创建一个不同的文件夹(防止文件名冲突)
-        String userCodeParentPath = globalCodePathName + File.separator + java.util.UUID.randomUUID();
-        String userCodePath = userCodeParentPath + File.separator + GLOBAL_JAVA_CLASS_NAME;
-        //  使用 Hutool 工具类保存用户代码
-        return FileUtil.writeString(userCode, userCodePath, StandardCharsets.UTF_8);
+        //把用户代码隔离
+        String userCodeParentPath = globalCodePathName + File.separator + UUID.randomUUID();
+        String userCodePath = userCodeParentPath + File.separator + fileName;
+        return FileUtil.writeUtf8String(userCode, userCodePath);
+
+
+        // 获取当前 Java 进程的工作目录
+//        String userDir = System.getProperty("user.dir");
+//        log.info("userDir: {}", userDir); //  D:\WorkSpace\OJ\dyoj-code-sandbox
+//
+//        String globalCodePathName = userDir + File.separator + GLOBAL_CODE_PATH;
+//
+//        if (!FileUtil.exist(globalCodePathName)) {
+//            FileUtil.mkdir(globalCodePathName);
+//        }
+//        // 每个提交创建一个不同的文件夹(防止文件名冲突)
+//        String userCodeParentPath = globalCodePathName + File.separator + java.util.UUID.randomUUID();
+//        String userCodePath = userCodeParentPath + File.separator + GLOBAL_JAVA_CLASS_NAME;
+//        //  使用 Hutool 工具类保存用户代码
+//        return FileUtil.writeString(userCode, userCodePath, StandardCharsets.UTF_8);
     }
 
 

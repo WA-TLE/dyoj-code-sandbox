@@ -1,8 +1,10 @@
 package com.dy.controller;
 
+import com.dy.sandbox.CodeSandBox;
 import com.dy.sandbox.JavaNativeCodeSandbox;
 import com.dy.model.ExecuteCodeRequest;
 import com.dy.model.ExecuteCodeResponse;
+import com.dy.strategy.SandBoxManager;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,8 +27,8 @@ public class CodeSandboxController {
     public static final String AUTH_REQUEST_HEADER = "auth";
     public static final String AUTH_REQUEST_SECRET = "dingyu";
 
-    @Resource
-    private JavaNativeCodeSandbox javaNativeCodeSandbox;
+//    @Resource
+//    private JavaNativeCodeSandbox javaNativeCodeSandbox;
 
     @PostMapping("/executeCode")
     public ExecuteCodeResponse executeCode(@RequestBody ExecuteCodeRequest executeCodeRequest, HttpServletRequest request,
@@ -38,8 +40,10 @@ public class CodeSandboxController {
 //            return null;
 //        }
 
+        String language = executeCodeRequest.getLanguage();
+        CodeSandBox sandBos = SandBoxManager.getSandBos(language);
 
         log.info("远程代码沙箱调用: {}", executeCodeRequest);
-        return javaNativeCodeSandbox.executeCode(executeCodeRequest);
+        return sandBos.executeCode(executeCodeRequest);
     }
 }

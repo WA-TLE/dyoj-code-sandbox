@@ -10,5 +10,5 @@ import com.dy.model.ExecuteCodeResponse;
  * @Description:
  */
 public interface CodeSandBox {
-    ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) throws InterruptedException;
+    ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) ;
 }
