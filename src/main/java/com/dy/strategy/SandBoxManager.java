@@ -1,6 +1,7 @@
 package com.dy.strategy;
 
 import com.dy.sandbox.CodeSandBox;
+import com.dy.sandbox.java.DockerContainerPool;
 import com.dy.sandbox.java.JavaDockerCodeSandbox;
 import com.dy.sandbox.java.JavaNativeCodeSandbox;
 import com.dy.sandbox.cpp.CppNativeCodeSandbox;
@@ -14,7 +15,7 @@ public class SandBoxManager {
     public static CodeSandBox getSandBos(String language) {
         switch (language) {
             case "java":
-                return new JavaDockerCodeSandbox();
+                return new JavaDockerCodeSandbox(new DockerContainerPool());
             case "cpp":
                 return new CppNativeCodeSandbox();
             default:

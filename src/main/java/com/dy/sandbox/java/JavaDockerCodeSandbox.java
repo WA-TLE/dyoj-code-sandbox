@@ -38,6 +38,12 @@ import java.util.concurrent.TimeUnit;
 public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
 
     private static final long TIME_OUT = 10000L; // 超时时间，毫秒
+    private final DockerContainerPool containerPool;
+
+    // 通过构造器注入 Docker 容器池
+    public JavaDockerCodeSandbox(DockerContainerPool containerPool) {
+        this.containerPool = containerPool;
+    }
 
     @Override
     public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) {
@@ -51,53 +57,85 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
      * @param userCodeFile 用户代码文件(用它来得到父目录)
      * @return
      */
+//    @Override
+//    public List<ExecuteMessage> runUserCode(List<String> inputList, File userCodeFile) {
+//
+//        List<ExecuteMessage> executeMessageList = new ArrayList<>();
+//        String userCodeParentPath = userCodeFile.getParentFile().getAbsolutePath();
+//
+//        // 1.创建 Docker 客户端
+//        DockerClient dockerClient = createDockerClient();
+//        // 2.创建容器
+//        String containerId = createContainer(dockerClient, userCodeParentPath);
+//
+//        System.out.println("容器 ID: " + containerId);
+//
+//        // 3.启动容器!
+//        dockerClient.startContainerCmd(containerId).exec();
+//
+//
+//
+//        final long[] maxMemory = {0L};
+//
+//
+//        CountDownLatch latch = new CountDownLatch(5);
+//
+//        try {
+//            for (String inputArgs : inputList) {
+//                // 1. 获取容器运行时的统计信息, 用于监控容器的资源使用情况
+//                StatsCmd statsCmd = dockerClient.statsCmd(containerId);
+//                ResultCallback<Statistics> statisticsResultCallback = createStatisticsCallback(maxMemory, latch);
+//                statsCmd.exec(statisticsResultCallback);
+//
+//                // 2. 执行用户代码
+//                executeUserCode(dockerClient, containerId, inputArgs, executeMessageList, maxMemory);
+//
+//                // 3. 等待统计完成
+//                try {
+//                    latch.await(); // 等待统计数据的获取完成
+//                } catch (InterruptedException e) {
+//                    throw new RuntimeException(e);
+//                } finally {
+//                    statsCmd.close(); // 停止内存统计
+//                }
+//            }
+//        } finally {
+//            // 停止并移除容器
+//            dockerClient.stopContainerCmd(containerId).exec();
+//            dockerClient.removeContainerCmd(containerId).exec();
+//        }
+//
+//        return executeMessageList;
+//    }
+
     @Override
     public List<ExecuteMessage> runUserCode(List<String> inputList, File userCodeFile) {
-
         List<ExecuteMessage> executeMessageList = new ArrayList<>();
-
         String userCodeParentPath = userCodeFile.getParentFile().getAbsolutePath();
 
-        // 1.创建 Docker 客户端
-        DockerClient dockerClient = createDockerClient();
-        // 2.创建容器
-        String containerId = createContainer(dockerClient, userCodeParentPath);
+        // 从容器池中获取一个可用的容器
+        DockerContainer dockerContainer = containerPool.acquireContainer(userCodeParentPath);
+        String containerId = dockerContainer.getContainerId();
 
-        System.out.println("容器 ID: " + containerId);
+        System.out.println("使用的容器 ID: " + containerId);
 
-        // 3.启动容器!
-        dockerClient.startContainerCmd(containerId).exec();
-
-
-
+        StatsCmd statsCmd = dockerContainer.getDockerClient().statsCmd(containerId);
         final long[] maxMemory = {0L};
-
-
         CountDownLatch latch = new CountDownLatch(5);
+        ResultCallback<Statistics> statisticsResultCallback = createStatisticsCallback(maxMemory, latch);
+        statsCmd.exec(statisticsResultCallback);
 
         try {
+            latch.await(); // 等待统计数据获取完成
             for (String inputArgs : inputList) {
-                // 1. 获取容器运行时的统计信息, 用于监控容器的资源使用情况
-                StatsCmd statsCmd = dockerClient.statsCmd(containerId);
-                ResultCallback<Statistics> statisticsResultCallback = createStatisticsCallback(maxMemory, latch);
-                statsCmd.exec(statisticsResultCallback);
-
-                // 2. 执行用户代码
-                executeUserCode(dockerClient, containerId, inputArgs, executeMessageList, maxMemory);
-
-                // 3. 等待统计完成
-                try {
-                    latch.await(); // 等待统计数据的获取完成
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    statsCmd.close(); // 停止内存统计
-                }
+                executeUserCode(dockerContainer.getDockerClient(), containerId, inputArgs, executeMessageList, maxMemory);
             }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         } finally {
-            // 停止并移除容器
-            dockerClient.stopContainerCmd(containerId).exec();
-            dockerClient.removeContainerCmd(containerId).exec();
+            // 将容器归还到池中，等待下次使用
+            containerPool.releaseContainer(dockerContainer);
+            statsCmd.close();
         }
 
         return executeMessageList;
