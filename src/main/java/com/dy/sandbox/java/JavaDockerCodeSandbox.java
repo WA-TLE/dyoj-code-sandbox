@@ -55,52 +55,69 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
     public List<ExecuteMessage> runUserCode(List<String> inputList, File userCodeFile) {
 
         List<ExecuteMessage> executeMessageList = new ArrayList<>();
-        String userCodeParentPath = userCodeFile.getParentFile().getAbsolutePath();
-        DockerClient dockerClient = createDockerClient();
 
-        // 创建容器
+        String userCodeParentPath = userCodeFile.getParentFile().getAbsolutePath();
+
+        // 1.创建 Docker 客户端
+        DockerClient dockerClient = createDockerClient();
+        // 2.创建容器
         String containerId = createContainer(dockerClient, userCodeParentPath);
 
         System.out.println("容器 ID: " + containerId);
 
+        // 3.启动容器!
         dockerClient.startContainerCmd(containerId).exec();
-        StatsCmd statsCmd = dockerClient.statsCmd(containerId);
+
+
+
         final long[] maxMemory = {0L};
 
 
         CountDownLatch latch = new CountDownLatch(5);
-        ResultCallback<Statistics> statisticsResultCallback = createStatisticsCallback(maxMemory, latch);
-        // 使用 CountDownLatch 同步统计数据的获取
-        statsCmd.exec(statisticsResultCallback);
-        try {
-            latch.await(); // 等待统计数据的获取完成
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
 
         try {
             for (String inputArgs : inputList) {
+                // 1. 获取容器运行时的统计信息, 用于监控容器的资源使用情况
+                StatsCmd statsCmd = dockerClient.statsCmd(containerId);
+                ResultCallback<Statistics> statisticsResultCallback = createStatisticsCallback(maxMemory, latch);
+                statsCmd.exec(statisticsResultCallback);
+
+                // 2. 执行用户代码
                 executeUserCode(dockerClient, containerId, inputArgs, executeMessageList, maxMemory);
+
+                // 3. 等待统计完成
+                try {
+                    latch.await(); // 等待统计数据的获取完成
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    statsCmd.close(); // 停止内存统计
+                }
             }
         } finally {
-            // 停止容器
+            // 停止并移除容器
             dockerClient.stopContainerCmd(containerId).exec();
-            // 删除容器
             dockerClient.removeContainerCmd(containerId).exec();
-            statsCmd.close();
         }
 
         return executeMessageList;
     }
 
+    /**
+     * 创建 Docker 客户端
+     *
+     * @return
+     */
     private DockerClient createDockerClient() {
         URI uri;
         try {
+            // Docker 守护进程的位置
             uri = new URI("unix:///var/run/docker.sock");
         } catch (URISyntaxException e) {
             throw new RuntimeException("Invalid Docker URI", e);
         }
 
+        // 创建 Docker 客户端实例
         return DockerClientBuilder.getInstance()
                 .withDockerHttpClient(new OkDockerHttpClient.Builder()
                         .dockerHost(uri)
@@ -108,6 +125,13 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
                 .build();
     }
 
+    /**
+     * 创建容器
+     *
+     * @param dockerClient
+     * @param userCodeParentPath
+     * @return
+     */
     private String createContainer(DockerClient dockerClient, String userCodeParentPath) {
         HostConfig hostConfig = new HostConfig()
                 .withBinds(new Bind(userCodeParentPath, new Volume("/app")))
@@ -129,7 +153,14 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
         return containerResponse.getId();
     }
 
-    // TODO: 8/1/24 统计占用内存信息
+    /**
+     * 创建统计内存回调
+     * 它是要不当做参数传递, 才会生效的!!!
+     *
+     * @param maxMemory
+     * @param latch
+     * @return
+     */
     private ResultCallback<Statistics> createStatisticsCallback(final long[] maxMemory, final CountDownLatch latch) {
         return new ResultCallback<Statistics>() {
 
@@ -174,11 +205,21 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
         };
     }
 
+    /**
+     * 执行用户代码
+     *
+     * @param dockerClient
+     * @param containerId
+     * @param inputArgs
+     * @param executeMessageList
+     * @param maxMemory
+     */
     private void executeUserCode(DockerClient dockerClient, String containerId, String inputArgs, List<ExecuteMessage> executeMessageList, final long[] maxMemory) {
         StopWatch stopWatch = new StopWatch();
         String[] cmdArray = ArrayUtil.append(new String[]{"java", "-cp", "/app", "Main"}, inputArgs.split(" "));
         System.out.println("执行的命令: " + String.join(" ", cmdArray));
 
+        // 告诉 Docker 我们需要在容器内执行什么命令
         ExecCreateCmdResponse execCreateCmdResponse = dockerClient.execCreateCmd(containerId)
                 .withCmd(cmdArray)
                 .withAttachStdin(true)
@@ -195,6 +236,12 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
         ExecStartResultCallback execStartResultCallback = new ExecStartResultCallback() {
             @Override
             public void onComplete() {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");//设置日期格式
+                Date now = new Date();
+                String time = sdf.format(now);
+                System.out.println("最终时间: " + time);
+                System.out.println("内存大小为: " + maxMemory[0]);
+                executeMessage.setMemory(maxMemory[0]);
                 timeout[0] = false;
                 super.onComplete();
             }
