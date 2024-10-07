@@ -10,7 +10,6 @@ import com.dy.model.JudgeInfo;
 import com.dy.model.enums.JudgeInfoMessageEnum;
 import com.dy.model.enums.QuestionSubmitStatusEnum;
 import com.dy.sandbox.CodeSandBox;
-import com.dy.sandbox.CommonCodeSandBox;
 import com.dy.utils.ProcessUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -21,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.dy.constant.CodeBlackList.C_SENSITIVE_WORD_LIST;
-import static com.dy.constant.CodeBlackList.SENSITIVE_WORD_LIST;
 
 
 /**

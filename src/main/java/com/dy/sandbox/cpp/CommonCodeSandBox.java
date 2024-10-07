@@ -1,4 +1,4 @@
-package com.dy.sandbox;
+package com.dy.sandbox.cpp;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.UUID;
@@ -6,16 +6,13 @@ import cn.hutool.core.util.StrUtil;
 import com.dy.model.ExecuteCodeResponse;
 import com.dy.model.ExecuteMessage;
 import com.dy.model.JudgeInfo;
+import com.dy.sandbox.CodeSandBox;
 import lombok.extern.slf4j.Slf4j;
 
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.dy.sandbox.CodeSandboxTemplate.GLOBAL_CODE_PATH;
-import static com.dy.sandbox.CodeSandboxTemplate.GLOBAL_JAVA_CLASS_NAME;
 
 /**
  * @author 15712

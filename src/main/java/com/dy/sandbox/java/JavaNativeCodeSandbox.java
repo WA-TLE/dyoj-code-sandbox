@@ -1,4 +1,4 @@
-package com.dy.sandbox;
+package com.dy.sandbox.java;
 
 import cn.hutool.core.io.resource.ResourceUtil;
 import com.dy.model.ExecuteCodeRequest;
