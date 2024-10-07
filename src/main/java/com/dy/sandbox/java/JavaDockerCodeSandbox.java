@@ -22,7 +22,9 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -44,6 +46,7 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
 
     /**
      * 重新执行代码，得到输出结果
+     *
      * @param inputList    代码输入用例
      * @param userCodeFile 用户代码文件(用它来得到父目录)
      * @return
@@ -132,14 +135,27 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
 
             @Override
             public void onNext(Statistics statistics) {
-                long memory = statistics.getMemoryStats().getUsage();
-                maxMemory[0] = Math.max(maxMemory[0], memory);
-                System.out.println("内存占用: " + maxMemory[0]);
+
+
+                MemoryStatsConfig memoryStats = statistics.getMemoryStats();
+                if (memoryStats != null) {
+                    long memory = memoryStats.getUsage();
+                    System.out.println("memory: " + memory);
+                    maxMemory[0] = Math.max(maxMemory[0], memory);
+                    System.out.println("内存占用: " + maxMemory[0]);
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");//设置日期格式
+                    Date now = new Date();
+                    String time = sdf.format(now);
+                    System.out.println("统计内存 - 当前时间: " + time);
+                }
+
+
                 latch.countDown(); // 统计完成后减少计数
             }
 
             @Override
-            public void onStart(Closeable closeable) {}
+            public void onStart(Closeable closeable) {
+            }
 
             @Override
             public void onError(Throwable throwable) {
@@ -149,10 +165,12 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
             }
 
             @Override
-            public void onComplete() {}
+            public void onComplete() {
+            }
 
             @Override
-            public void close() throws IOException {}
+            public void close() throws IOException {
+            }
         };
     }
 
@@ -209,6 +227,11 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
         executeMessage.setErrorMessage(errorMessage[0]);
         executeMessage.setTime(stopWatch.getLastTaskTimeMillis());
 
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");//设置日期格式
+        Date now = new Date();
+        String time = sdf.format(now);
+        System.out.println("储存内存时 - 当前时间: " + time);
+        System.out.println("内存大小: " + maxMemory[0]);
         executeMessage.setMemory(maxMemory[0]);
 
         executeMessageList.add(executeMessage);

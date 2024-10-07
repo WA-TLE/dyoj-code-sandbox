@@ -14,7 +14,7 @@ public class SandBoxManager {
     public static CodeSandBox getSandBos(String language) {
         switch (language) {
             case "java":
-                return new JavaNativeCodeSandbox();
+                return new JavaDockerCodeSandbox();
             case "cpp":
                 return new CppNativeCodeSandbox();
             default:

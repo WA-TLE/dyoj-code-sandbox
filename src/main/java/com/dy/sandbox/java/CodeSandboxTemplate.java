@@ -188,6 +188,7 @@ public abstract class CodeSandboxTemplate  implements CodeSandBox {
         ArrayList<String> outputList = new ArrayList<>();
 
         long maxTime = 0;
+        long maxMemory = 0;
         for (ExecuteMessage executeMessage : executeMessageList) {
             String errorMessage = executeMessage.getErrorMessage();
             if (errorMessage != null) {
@@ -202,6 +203,21 @@ public abstract class CodeSandboxTemplate  implements CodeSandBox {
             }
             outputList.add(executeMessage.getMessage());
         }
+        for (ExecuteMessage executeMessage : executeMessageList) {
+            String errorMessage = executeMessage.getErrorMessage();
+            if (errorMessage != null) {
+                //  代码执行错误!
+                executeCodeResponse.setStatus(3);
+                executeCodeResponse.setMessage(errorMessage);
+                break;
+            }
+            Long memory = executeMessage.getMemory();
+            if (memory != null) {
+                maxMemory = Math.max((maxMemory), memory);
+            }
+            outputList.add(executeMessage.getMessage());
+        }
+
         if (outputList.size() == executeMessageList.size()) {
             //  程序正常退出
             executeCodeResponse.setStatus(1);
@@ -210,7 +226,7 @@ public abstract class CodeSandboxTemplate  implements CodeSandBox {
         }
         JudgeInfo judgeInfo = new JudgeInfo();
         judgeInfo.setTime(maxTime);
-        judgeInfo.setMemory(0L);
+        judgeInfo.setMemory(maxMemory);
         executeCodeResponse.setJudgeInfo(judgeInfo);
         log.info("程序输出结果: {}", executeCodeResponse);
         return executeCodeResponse;
