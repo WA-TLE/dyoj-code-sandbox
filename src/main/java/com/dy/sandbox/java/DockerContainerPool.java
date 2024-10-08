@@ -20,9 +20,12 @@ public class DockerContainerPool {
 
     private final DockerClient dockerClient;
     private final BlockingQueue<DockerContainer> containerPool;
-    private final int poolSize = 10;  // 池大小
+    private final int poolSize = 2;  // 池大小
+    // 静态对象
+    private static DockerContainerPool dockerContainerPool;
 
-    public DockerContainerPool() {
+    // 构造方法私有化
+    private DockerContainerPool() {
         this.dockerClient = createDockerClient();
         this.containerPool = new LinkedBlockingQueue<>(poolSize);
         
@@ -31,6 +34,13 @@ public class DockerContainerPool {
             String containerId = createContainer(dockerClient, "/app");
             containerPool.offer(new DockerContainer(dockerClient, containerId));
         }
+    }
+
+    public static DockerContainerPool getInstance() {
+        if (dockerContainerPool == null) {
+            dockerContainerPool = new DockerContainerPool();
+        }
+        return dockerContainerPool;
     }
 
     // 获取容器
@@ -90,7 +100,15 @@ public class DockerContainerPool {
                 .withTty(true)
                 .withCmd("/bin/sh");
 
+        // 创建容器
         CreateContainerResponse containerResponse = containerCmd.exec();
-        return containerResponse.getId();
+        String containerId = containerResponse.getId();
+
+        // 启动容器
+        dockerClient.startContainerCmd(containerId).exec();
+        System.out.println("创建并启动容器: " + containerId);
+
+        return containerId;
     }
+
 }

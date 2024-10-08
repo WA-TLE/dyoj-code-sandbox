@@ -15,6 +15,7 @@ import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
 import com.github.dockerjava.okhttp.OkDockerHttpClient;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.io.Closeable;
@@ -38,7 +39,12 @@ import java.util.concurrent.TimeUnit;
 public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
 
     private static final long TIME_OUT = 10000L; // 超时时间，毫秒
+
+
     private final DockerContainerPool containerPool;
+
+
+
 
     // 通过构造器注入 Docker 容器池
     public JavaDockerCodeSandbox(DockerContainerPool containerPool) {
@@ -123,13 +129,15 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
         final long[] maxMemory = {0L};
         CountDownLatch latch = new CountDownLatch(5);
         ResultCallback<Statistics> statisticsResultCallback = createStatisticsCallback(maxMemory, latch);
-        statsCmd.exec(statisticsResultCallback);
+
 
         try {
-            latch.await(); // 等待统计数据获取完成
+
             for (String inputArgs : inputList) {
                 executeUserCode(dockerContainer.getDockerClient(), containerId, inputArgs, executeMessageList, maxMemory);
             }
+            statsCmd.exec(statisticsResultCallback);
+            latch.await(); // 等待统计数据获取完成
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } finally {
@@ -187,9 +195,17 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
                 .withTty(true)
                 .withCmd("/bin/sh");
 
+        // 创建容器
         CreateContainerResponse containerResponse = containerCmd.exec();
-        return containerResponse.getId();
+        String containerId = containerResponse.getId();
+
+        // 启动容器
+        dockerClient.startContainerCmd(containerId).exec();
+        System.out.println("创建并启动容器: " + containerId);
+
+        return containerId;
     }
+
 
     /**
      * 创建统计内存回调
@@ -208,9 +224,11 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
 
                 MemoryStatsConfig memoryStats = statistics.getMemoryStats();
                 if (memoryStats != null) {
-                    long memory = memoryStats.getUsage();
+                    Long memory = memoryStats.getUsage();
                     System.out.println("memory: " + memory);
-                    maxMemory[0] = Math.max(maxMemory[0], memory);
+                    if (memory != null) {
+                        maxMemory[0] = Math.max(maxMemory[0], memory);
+                    }
                     System.out.println("内存占用: " + maxMemory[0]);
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");//设置日期格式
                     Date now = new Date();
