@@ -1,22 +1,32 @@
 package com.dy.sandbox.java;
 
+import cn.hutool.core.io.FileUtil;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.dockerjava.api.command.CreateContainerResponse;
+import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.okhttp.OkDockerHttpClient;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 @Component
+@Slf4j
 public class DockerContainerPool {
+
+    public static final String GLOBAL_CODE_PATH = "tempcode";
+    public static final String GLOBAL_JAVA_CLASS_NAME = "Main.java";
 
     private final DockerClient dockerClient;
     private final BlockingQueue<DockerContainer> containerPool;
@@ -31,24 +41,39 @@ public class DockerContainerPool {
         
         // 初始化时创建指定数量的容器
         for (int i = 0; i < poolSize; i++) {
-            String containerId = createContainer(dockerClient, "/app");
-            containerPool.offer(new DockerContainer(dockerClient, containerId));
+            String userCodePath = saveUserCode();
+            String containerId = createContainer(dockerClient, userCodePath);
+            containerPool.offer(new DockerContainer(dockerClient, containerId, userCodePath));
         }
     }
 
     public static DockerContainerPool getInstance() {
         if (dockerContainerPool == null) {
+            System.out.println("创建 Docker 池对象");
             dockerContainerPool = new DockerContainerPool();
         }
         return dockerContainerPool;
     }
 
     // 获取容器
-    public DockerContainer acquireContainer(String userCodeParentPath) {
+    public DockerContainer acquireContainer() {
         DockerContainer container = null;
         try {
+
+
             container = containerPool.take();
-            System.out.println("从池中获取容器: " + container.getContainerId());
+            String containerId = container.getContainerId();
+            System.out.println("从池中获取容器: " + containerId);
+
+            // 检查容器状态，确保容器在运行
+            InspectContainerResponse containerInfo = container.getDockerClient().inspectContainerCmd(containerId).exec();
+            if (Boolean.FALSE.equals(containerInfo.getState().getRunning())) {
+                // 如果未运行，则启动容器
+                System.out.println("容器未运行，启动容器: " + containerId);
+                container.getDockerClient().startContainerCmd(containerId).exec();
+            }
+
+
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -58,9 +83,17 @@ public class DockerContainerPool {
     // 释放容器
     public void releaseContainer(DockerContainer container) {
         try {
-            container.getDockerClient().stopContainerCmd(container.getContainerId()).exec();
+            String containerId = container.getContainerId();
+
+            // 检查容器是否运行中，只有运行中的容器才需要停止
+            InspectContainerResponse containerInfo = container.getDockerClient().inspectContainerCmd(containerId).exec();
+            if (containerInfo.getState().getRunning()) {
+                container.getDockerClient().stopContainerCmd(containerId).exec();
+                System.out.println("停止容器并归还到池中: " + containerId);
+            }
+
+            // 将容器归还到池中
             containerPool.offer(container);
-            System.out.println("将容器归还到池中: " + container.getContainerId());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -102,13 +135,26 @@ public class DockerContainerPool {
 
         // 创建容器
         CreateContainerResponse containerResponse = containerCmd.exec();
-        String containerId = containerResponse.getId();
+        return containerResponse.getId();
+    }
 
-        // 启动容器
-        dockerClient.startContainerCmd(containerId).exec();
-        System.out.println("创建并启动容器: " + containerId);
+    public String  saveUserCode() {
+        // 获取当前 Java 进程的工作目录
+        String userDir = System.getProperty("user.dir");
+        log.info("userDir: {}", userDir); //  D:\WorkSpace\OJ\dyoj-code-sandbox
 
-        return containerId;
+        String globalCodePathName = userDir + File.separator + GLOBAL_CODE_PATH;
+
+        if (!FileUtil.exist(globalCodePathName)) {
+            FileUtil.mkdir(globalCodePathName);
+        }
+        // 每个提交创建一个不同的文件夹(防止文件名冲突)
+        String userCodeParentPath = globalCodePathName + File.separator + UUID.randomUUID();
+
+
+
+        //  使用 Hutool 工具类保存用户代码
+        return userCodeParentPath;
     }
 
 }

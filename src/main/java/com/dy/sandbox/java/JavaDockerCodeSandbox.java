@@ -1,6 +1,7 @@
 package com.dy.sandbox.java;
 
 import cn.hutool.core.date.StopWatch;
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.ArrayUtil;
 import com.dy.model.ExecuteCodeRequest;
 import com.dy.model.ExecuteCodeResponse;
@@ -16,6 +17,7 @@ import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
 import com.github.dockerjava.okhttp.OkDockerHttpClient;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.Closeable;
@@ -23,10 +25,12 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -36,14 +40,13 @@ import java.util.concurrent.TimeUnit;
  * @Description:
  */
 @Component
+@Slf4j
 public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
 
     private static final long TIME_OUT = 10000L; // 超时时间，毫秒
 
 
     private final DockerContainerPool containerPool;
-
-
 
 
     // 通过构造器注入 Docker 容器池
@@ -53,16 +56,44 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
 
     @Override
     public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) {
-        return super.executeCode(executeCodeRequest);
+        String language = executeCodeRequest.getLanguage();
+        String userCode = executeCodeRequest.getCode();
+        List<String> inputList = executeCodeRequest.getInputList();
+
+        // 从容器池中获取一个可用的容器
+        DockerContainer dockerContainer = containerPool.acquireContainer();
+
+        File userCodeFile = saveUserCode(userCode, dockerContainer);
+
+        super.compileCode(userCodeFile);
+        List<ExecuteMessage> executeMessageList = super.runUserCode(inputList, userCodeFile);
+        ExecuteCodeResponse outputResponse = super.getOutputResponse(executeMessageList);
+
+        super.deleteFile(userCodeFile);
+
+        return outputResponse;
     }
 
-    /**
-     * 重新执行代码，得到输出结果
-     *
-     * @param inputList    代码输入用例
-     * @param userCodeFile 用户代码文件(用它来得到父目录)
-     * @return
-     */
+    private static File saveUserCode(String userCode, DockerContainer dockerContainer) {
+        String userCodeParentPath = dockerContainer.getUserCodePath();
+
+        log.info("userCodeParentPath: " + userCodeParentPath);
+
+        if (!FileUtil.exist(userCodeParentPath)) {
+            FileUtil.mkdir(userCodeParentPath);
+        }
+
+        String userCodePath = userCodeParentPath + File.separator + GLOBAL_JAVA_CLASS_NAME;
+        //  使用 Hutool 工具类保存用户代码
+        return FileUtil.writeString(userCode, userCodePath, StandardCharsets.UTF_8);
+
+
+
+
+    }
+
+
+
 //    @Override
 //    public List<ExecuteMessage> runUserCode(List<String> inputList, File userCodeFile) {
 //
@@ -114,13 +145,21 @@ public class JavaDockerCodeSandbox extends CodeSandboxTemplate {
 //        return executeMessageList;
 //    }
 
+
+    @Override
+    public void compileCode(File userCodeFile) {
+        super.compileCode(userCodeFile);
+    }
+
     @Override
     public List<ExecuteMessage> runUserCode(List<String> inputList, File userCodeFile) {
+
+
         List<ExecuteMessage> executeMessageList = new ArrayList<>();
         String userCodeParentPath = userCodeFile.getParentFile().getAbsolutePath();
 
         // 从容器池中获取一个可用的容器
-        DockerContainer dockerContainer = containerPool.acquireContainer(userCodeParentPath);
+        DockerContainer dockerContainer = containerPool.acquireContainer();
         String containerId = dockerContainer.getContainerId();
 
         System.out.println("使用的容器 ID: " + containerId);

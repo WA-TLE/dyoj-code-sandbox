@@ -15,7 +15,8 @@ public class SandBoxManager {
     public static CodeSandBox getSandBos(String language) {
         switch (language) {
             case "java":
-                return new JavaDockerCodeSandbox(DockerContainerPool.getInstance());
+//                return new JavaDockerCodeSandbox(DockerContainerPool.getInstance());
+                new JavaNativeCodeSandbox();
             case "cpp":
                 return new CppNativeCodeSandbox();
             default:
